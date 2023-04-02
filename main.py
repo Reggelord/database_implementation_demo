@@ -1,15 +1,15 @@
 from sstable import SSTable
 from random import randint
 from time import time_ns
+from os import path
 
 
 
 if __name__ == "__main__":
-    
     print("SSTable start")
     t_start = time_ns()
-    db_path = "store.csv"
-    database = SSTable(db_path)
+    db_dir = path.join(path.dirname(__file__), 'database_store')
+    database = SSTable(db_dir)
     print(f"Time taken load database: {(time_ns() - t_start)/1e9} s")
     N = 4000
     ### Generate N random key-value pairs. "Emulate" Youtube video view counter
