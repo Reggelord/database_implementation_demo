@@ -11,7 +11,7 @@ if __name__ == "__main__":
     db_dir = path.join(path.dirname(__file__), 'database_store')
     database = SSTable(db_dir)
     print(f"Time taken load database: {(time_ns() - t_start)/1e9} s")
-    N = 4000
+    N = 10000
     ### Generate N random key-value pairs. "Emulate" Youtube video view counter
     
     for i in range(N):
@@ -21,5 +21,11 @@ if __name__ == "__main__":
             val = 0
         database.set_value(f'key_{key_id}', val+1)
 
+    #database.merge_segments()
 
     print(f"Time taken to generate {N} random key-values pairs: {(time_ns() - t_start)/1e9} s")
+
+    print()
+
+    w = dict()
+    w.get()

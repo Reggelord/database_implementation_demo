@@ -1,5 +1,5 @@
 import linecache
-from os import path
+from os import path, remove, listdir
 import shutil
 
 class SSTable:
@@ -12,13 +12,13 @@ class SSTable:
 
         self.hash_table = {}  # placeholder
         self.no_char = 0 # placeholder
-        self.saved_segments = set()
+        self.saved_segments = []
 
-        self.reset_cache()
+        #self.reset_cache()
         self.no_add_segmants = 0 # Number of additional segments to add to the database
         self.key_seg_path = {} # 'key': ('seg_0.csv', 0) # key, (segment file name, char number)
 
-
+        self.load_all_segments()
         try:
             self.load_sstable()
         except FileNotFoundError:
@@ -29,6 +29,10 @@ class SSTable:
         check_size = self.check_size()
         if check_size > 5000:
             self.save_segment()
+
+        if len(self.saved_segments) > 10:
+            self.merge_segments()
+
 
         with open(self.db_path, 'a') as f:
             new_data = f'{key},{value}\n'
@@ -58,6 +62,30 @@ class SSTable:
                 line_val = f.readline()
             return int(line_val.split(',')[1])
         return None
+    
+    def merge_segments(self):
+        """Merge all the segments into one file"""
+        merged_seg_file = self.new_segment_name()
+        merged_seg_path = path.join(self.database_dir, merged_seg_file)
+        
+        merged_key_seg_path = {}
+        merged_char_pos = 0
+        with open(merged_seg_path, 'a') as f:
+            for key in self.key_seg_path.keys():
+                new_data = f'{key},{self.get_data_segment(key)}\n'
+                f.write(new_data)
+                merged_key_seg_path[key] = (merged_seg_file,merged_char_pos)
+                merged_char_pos += len(new_data)+1
+        
+        self.key_seg_path = merged_key_seg_path
+        
+        # Delete old segments and update segment hashes
+        for old_seg in self.saved_segments:
+            old_seg_path = path.join(self.database_dir, old_seg)
+            remove(old_seg_path)
+
+        self.saved_segments = [merged_seg_file]
+        self.no_add_segmants = 0
             
     def load_sstable(self):
         """Update the hash table with the contents of the database"""
@@ -81,7 +109,7 @@ class SSTable:
 
         for key, char_no in self.hash_table.items():
             self.key_seg_path[key] = (new_seg_name, char_no)
-        self.saved_segments.add(new_seg_name)
+        self.saved_segments.append(new_seg_name)
         # 2. Clean the curent file & Start new hash map for the file
         self.reset_cache()
     
@@ -99,8 +127,26 @@ class SSTable:
     def new_segment_name(self):
 
         new_name = f'seg_{self.no_add_segmants}.csv'
-        while new_name in self.saved_segments:
+        while new_name in set(self.saved_segments):
             self.no_add_segmants += 1
             new_name = f'seg_{self.no_add_segmants}.csv'
 
         return new_name
+
+    def load_all_segments(self):
+        """Load all the segments into the database"""
+
+        all_files = [f for f in listdir(self.database_dir) if path.isfile(path.join(self.database_dir, f))]
+        seg_files = [path.join(self.database_dir, f) for f in all_files if f.startswith('seg_')]
+        seg_files = sorted(seg_files, key=path.getmtime)
+        
+        for seg_path in seg_files:
+            char_pos = 0
+            self.saved_segments.append(path.basename(seg_path))
+            with open(seg_path, 'r') as f:
+                for line in f:
+                    key, value = line.rstrip('\n').split(',')
+                    self.key_seg_path[key] = (path.basename(seg_path), self.no_char)
+                    char_pos += len(line)+1
+            
+            
